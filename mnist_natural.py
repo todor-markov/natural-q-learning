@@ -4,7 +4,7 @@ import numpy as np
 
 slim = tf.contrib.slim
 
-LEARNING_RATE = 0.001
+LEARNING_RATE = 0.01
 
 IMAGE_SIZE = 784
 LABEL_SIZE = 10
@@ -39,21 +39,28 @@ def _print_params(sess):
         d = tf.get_variable('d_2')
         c = tf.get_variable('c_1')
         W = tf.matmul(U, V)
-        print 'V', tf.reduce_sum(V).eval(session=sess)
-        print 'U', tf.reduce_sum(U).eval(session=sess)
-        print 'd', tf.reduce_sum(d).eval(session=sess)
-        print 'c', tf.reduce_sum(c).eval(session=sess)
+        print 'W', W.eval(session=sess)
+
+        #print 'V', V.eval(session=sess)
+        #print 'd', d.eval(session=sess)
+        #print 'U', U.eval(session=sess)
+        #print 'c', c.eval(session=sess)
 
 mnist = input_data.read_data_sets('MNIST_data', one_hot=True)
 
 x = tf.placeholder(tf.float32, [None, IMAGE_SIZE])
 
 def inference(x, scope='natural/net'):
+
     hidden_states = []
     with tf.variable_scope(scope, initializer=slim.xavier_initializer()):
-        h = x
+
+        V = tf.get_variable('V_1', (LAYER_SIZES[0], LAYER_SIZES[1]))
+        d = tf.get_variable('d_1', (LAYER_SIZES[1], ))
+        h = tf.nn.relu(tf.matmul(x, V) + d)
         hidden_states.append(h)
-        for i in range(1, NUM_LAYERS+1):
+
+        for i in range(2, NUM_LAYERS+1):
 
             # trainable network params
             V = tf.get_variable('V_' + str(i), (LAYER_SIZES[i - 1], LAYER_SIZES[i]))
@@ -67,9 +74,11 @@ def inference(x, scope='natural/net'):
 
             # whitened layer
             h = tf.matmul(h - c, tf.matmul(U, V)) + d
-            if i < NUM_LAYERS - 1:
+            if i < NUM_LAYERS:
+                print i
                 h = tf.nn.relu(h)
-            hidden_states.append(h)
+                hidden_states.append(h)
+            # TODO: figure out what to do with output layer
 
     return h, hidden_states
 
@@ -79,7 +88,7 @@ def reparametrize(samples):
     with tf.variable_scope('natural', reuse=True):
         _, hidden_states = inference(samples, scope='net')
         with tf.variable_scope('net'):
-            for i in range(1, NUM_LAYERS+1):
+            for i in range(2, NUM_LAYERS+1):
                 # fetch relevant variables
                 V = tf.get_variable('V_' + str(i))
                 d = tf.get_variable('d_' + str(i))
@@ -88,12 +97,11 @@ def reparametrize(samples):
 
                 # compute canonical parameters 
                 W = tf.matmul(U, V)
-                W = tf.Print(W, [tf.reduce_sum(V), i])
                 b = d - tf.matmul(tf.expand_dims(c, 0), W)
 
                 # estimate mu and sigma with samples from D
-                mu = tf.reduce_mean(hidden_states[i - 1], 0)
-                sigma = tf.reduce_mean(_batch_outer_product(hidden_states[i - 1], hidden_states[i - 1]), 0)
+                mu = tf.reduce_mean(hidden_states[i - 2], 0)
+                sigma = tf.reduce_mean(_batch_outer_product(hidden_states[i - 2], hidden_states[i - 2]), 0)
 
                 # update c and U from new mu and sigma
                 new_c = mu
@@ -102,10 +110,11 @@ def reparametrize(samples):
 
                 diagonal = tf.diag(tf.rsqrt(eig_vals + EPSILON))
                 new_U = tf.matmul(tf.transpose(eig_vecs), diagonal)
-                new_U_inverse = tf.matmul(eig_vecs, tf.diag(tf.sqrt(eig_vals + EPSILON)))
+                new_U_inverse = tf.matrix_inverse(new_U)
 
                 c = tf.assign(c, new_c)
                 U = tf.assign(U, new_U)
+                #U = tf.assign(U, tf.diag(tf.rsqrt((eig_vals + EPSILON))))
 
                 # update V and d
                 new_V = tf.matmul(new_U_inverse, W)
@@ -125,36 +134,50 @@ def reparametrize(samples):
 y, _ = inference(x)
 reparam = reparametrize(x)
 
+print 'trainable variables'
 for v in tf.trainable_variables():
+    print v.name
+
+print 'all variables'
+for v in tf.all_variables():
     print v.name
 
 # Define loss and optimizer
 y_ = tf.placeholder(tf.float32, [None, LABEL_SIZE])
 
 cross_entropy = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(y, y_))
-train_step = tf.train.GradientDescentOptimizer(0.5).minimize(cross_entropy)
+train_step = tf.train.GradientDescentOptimizer(LEARNING_RATE).minimize(cross_entropy)
 
 sess = tf.Session()
 
 # Train
 tf.initialize_all_variables().run(session=sess)
-for step in range(1000):
+for step in range(10000):
     batch_xs, batch_ys = mnist.train.next_batch(BATCH_SIZE)
-    _, loss = sess.run([tf.no_op(), cross_entropy], feed_dict={x: batch_xs, y_: batch_ys})
+    _, loss = sess.run([train_step, cross_entropy], feed_dict={x: batch_xs, y_: batch_ys})
     if step % T == 0:
 
+        print 'step: %s\r' % (step)
+
         # debug logging
-        print 'Before reparametrize'
+        #print 'Before reparametrize'
         _print_params(sess)
 
-        print 'step: %s\r' % (step)
+        before = sess.run(y, feed_dict={x: batch_xs, y_:batch_ys})
+
         samples, _ = mnist.train.next_batch(N_s)
         sess.run(reparam, feed_dict={x: samples})
 
+        after = sess.run(y, feed_dict={x: batch_xs, y_:batch_ys})
+
+        print 'before/after'
+        print np.sum(before - after)
+
         # seems like shit is going to infinity
         print 'After reparametrize'
-        _print_params(sess)
+        #_print_params(sess)
     
+#_print_params(sess)
 
 # Test trained model
 correct_prediction = tf.equal(tf.argmax(y, 1), tf.argmax(y_, 1))
