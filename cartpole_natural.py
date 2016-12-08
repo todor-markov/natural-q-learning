@@ -320,3 +320,18 @@ if __name__ == "__main__":
     )
 
     model.tf_train_model()
+
+    NUM_RUNS = 1
+
+    convergence_iterations = []
+
+    for i in range(NUM_RUNS):
+        model.tf_train_model()
+        convergence_iterations.append(model.time_to_convergence)
+    
+    converged_iterations = [x for x in convergence_percentage if x != None]
+    conv_percentage = sum(converged_iterations) / NUM_RUNS
+    conv_it_mean = np.mean(converged_iterations)
+    conv_it_std = np.std(converged_iterations)
+    print conv_percentage
+    print conv_it_mean, conv_it_std

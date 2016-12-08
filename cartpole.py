@@ -264,9 +264,14 @@ class ExperienceQModel(object):
                     # avg loss
                     sum_avg_loss += loss
 
-                else:
+
+                if self.consec_wins >= 2 * self.stop_training:
                     if self.time_to_convergence is None:
                         self.time_to_convergence = epoch
+
+                # else:
+                #     if self.time_to_convergence is None:
+                #         self.time_to_convergence = epoch
 
                 # Check if lost or not
                 if (endgame == True) or (endgame == False and t == self.n_steps-1):
@@ -286,16 +291,17 @@ class ExperienceQModel(object):
         if self.monitor_file:
             self.env.monitor.close()
 
+#'results/cartpole'
 
 if __name__ == "__main__":
 
     model = ExperienceQModel(
         env='CartPole-v0',\
-        monitor_file = 'results/cartpole',\
+        monitor_file = None,\
         log_dir = '/tmp/tf/cartpole-256_1e-3_norm',\
         max_memory=40000,\
         discount=.90,\
-        n_episodes=4,\
+        n_episodes=400,\
         n_steps=200,\
         batch_size=128,\
         learning_rate = 1.e-3,\
@@ -304,9 +310,18 @@ if __name__ == "__main__":
         stop_training = 10
     )
 
-    NUM_RUNS = 2
+    model.tf_train_model()
+    NUM_RUNS = 1
+
+    convergence_iterations = []
 
     for i in range(NUM_RUNS):
         model.tf_train_model()
         convergence_iterations.append(model.time_to_convergence)
-        print sum(convergence_iterations)/float(NUM_RUNS)
+    
+    converged_iterations = [x for x in convergence_percentage if x != None]
+    conv_percentage = sum(converged_iterations) / NUM_RUNS
+    conv_it_mean = np.mean(converged_iterations)
+    conv_it_std = np.std(converged_iterations)
+    print conv_percentage
+    print conv_it_mean, conv_it_std
