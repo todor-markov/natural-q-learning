@@ -15,16 +15,17 @@ def _identity_init():
 
 class NaturalNet():
 
-    def __init__(self, layer_sizes, epsilon):
+    def __init__(self, layer_sizes, epsilon, initializer):
         # include hidden and output layer sizes
         self.layer_sizes = layer_sizes
         self.num_layers = len(layer_sizes)
         self.epsilon = epsilon
+        self.initializer = initializer
 
     def inference(self, x, scope='natural/net'):
 
         hidden_states = []
-        with tf.variable_scope(scope, initializer=slim.xavier_initializer()):
+        with tf.variable_scope(scope, initializer=self.initializer):
 
             V = tf.get_variable('V_1', (x.get_shape()[-1], self.layer_sizes[0]))
             d = tf.get_variable('d_1', (self.layer_sizes[0], ))
