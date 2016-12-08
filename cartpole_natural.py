@@ -8,6 +8,7 @@ import re
 import tensorflow as tf
 import numpy as np
 import shutil
+import sys
 
 from natural_net import NaturalNet
 
@@ -277,13 +278,9 @@ class ExperienceQModel(object):
                     sum_avg_loss += loss
 
                     if global_step % self.T == 0:
-                        #x_batch, _ = self.exp_get_batch(self.N_s)
-                        #print 'reparametrizing neural network'
-                        #print self.x.get_shape()
-                        #print x_batch
-                        #print 'here'
-                        #self.session.run(self.reparametrize, feed_dict={self.x: x_batch})
-                        pass
+                        x_batch, _ = self.exp_get_batch(self.N_s)
+                        print 'reparametrizing neural network'
+                        self.session.run(self.reparametrize, feed_dict={self.x: x_batch})
 
                 # Check if lost or not
                 if (endgame == True) or (endgame == False and t == self.n_steps-1):

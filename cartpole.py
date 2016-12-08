@@ -204,6 +204,8 @@ class ExperienceQModel(object):
         if self.monitor_file:
             self.env.monitor.start(self.monitor_file,force=True)
 
+        self.time_to_convergence = None
+
         # Training cycle
         for epoch in range(self.n_episodes):
 
@@ -217,7 +219,8 @@ class ExperienceQModel(object):
             states = {}
 
             for t in range(self.n_steps):
-                self.env.render()
+                if self.monitor_file:
+                    self.env.render()
                 state_t1 = np.array(state_tp1)
         
                 # epsilon-greedy exploration
@@ -261,6 +264,10 @@ class ExperienceQModel(object):
                     # avg loss
                     sum_avg_loss += loss
 
+                else:
+                    if self.time_to_convergence is None:
+                        self.time_to_convergence = epoch
+
                 # Check if lost or not
                 if (endgame == True) or (endgame == False and t == self.n_steps-1):
                     self.update_game_score(episode_score)
@@ -288,7 +295,7 @@ if __name__ == "__main__":
         log_dir = '/tmp/tf/cartpole-256_1e-3_norm',\
         max_memory=40000,\
         discount=.90,\
-        n_episodes=400,\
+        n_episodes=4,\
         n_steps=200,\
         batch_size=128,\
         learning_rate = 1.e-3,\
@@ -297,4 +304,9 @@ if __name__ == "__main__":
         stop_training = 10
     )
 
-    model.tf_train_model()
+    NUM_RUNS = 2
+
+    for i in range(NUM_RUNS):
+        model.tf_train_model()
+        convergence_iterations.append(model.time_to_convergence)
+        print sum(convergence_iterations)/float(NUM_RUNS)
