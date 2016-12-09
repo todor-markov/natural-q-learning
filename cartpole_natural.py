@@ -2,6 +2,14 @@
 # Link to Github gist page for the original implementation:
 # https://gist.github.com/omdv/98351da37283c8b6161672d6d555cde6#file-readme-md
 # 
+# This implementation uses a neural net with natural gradient descent, as described
+# in the following paper:
+#
+# Desjardins, Guillaume, Karen Simonyan, and Razvan Pascanu. 
+# "Natural neural networks." 
+# Advances in Neural Information Processing Systems. 2015.
+#
+# https://papers.nips.cc/paper/5953-natural-neural-networks.pdf
 
 import gym
 import re
@@ -28,6 +36,8 @@ class ExperienceQModel(object):
 
         # exploration
         self.eps = exploration # epsilon-greedy as function of epoch
+
+        self.time_to_convergence = None
         
         # environment parameters
         self.env = gym.make(env)
@@ -219,6 +229,8 @@ class ExperienceQModel(object):
         if self.monitor_file:
             self.env.monitor.start(self.monitor_file,force=True)
 
+        self.memory = list()
+
         global_step = 0
         # Training cycle
         for epoch in range(self.n_episodes):
@@ -232,8 +244,13 @@ class ExperienceQModel(object):
             episode_score = 0.
             states = {}
 
+            if self.consec_wins >= 2.5 * self.stop_training:
+                if self.time_to_convergence is None:
+                    self.time_to_convergence = epoch
+
+
             for t in range(self.n_steps):
-                self.env.render()
+                #self.env.render()
                 state_t1 = np.array(state_tp1)
         
                 # epsilon-greedy exploration
@@ -306,11 +323,11 @@ if __name__ == "__main__":
 
     model = ExperienceQModel(
         env='CartPole-v0',\
-        monitor_file = 'results/cartpole',\
+        monitor_file = None,\
         log_dir = '/tmp/tf/cartpole-256_1e-3_norm',\
         max_memory=40000,\
         discount=.90,\
-        n_episodes=400,\
+        n_episodes=150,\
         n_steps=200,\
         batch_size=128,\
         learning_rate = 1.e-3,\
@@ -319,9 +336,7 @@ if __name__ == "__main__":
         stop_training = 10
     )
 
-    model.tf_train_model()
-
-    NUM_RUNS = 1
+    NUM_RUNS = 2
 
     convergence_iterations = []
 
@@ -329,9 +344,10 @@ if __name__ == "__main__":
         model.tf_train_model()
         convergence_iterations.append(model.time_to_convergence)
     
-    converged_iterations = [x for x in convergence_percentage if x != None]
+    converged_iterations = [x for x in convergence_iterations if x != None]
     conv_percentage = sum(converged_iterations) / NUM_RUNS
     conv_it_mean = np.mean(converged_iterations)
     conv_it_std = np.std(converged_iterations)
     print conv_percentage
     print conv_it_mean, conv_it_std
+    print convergence_iterations
