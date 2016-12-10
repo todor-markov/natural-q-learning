@@ -44,5 +44,7 @@ During training, run the provided 'reparam_op' every T iterations on a batch of 
 ## Experiments
 We currently present experiments on three tasks: MNIST, Cartpole and Gridworld.
 
-We use MNIST to validate our PRONG implementation. Compared to vanilla SGD, our PRONG implementation trains faster and generalizes better, achieving ~1% smaller test error during 1000 epochs training on the MNIST data 
+We use MNIST to validate our PRONG implementation. Compared to vanilla SGD, our PRONG implementation trains faster and generalizes better, achieving ~1% smaller test error during 10000 epochs training on the MNIST data with a simple fully connected network. We see a similar improvement with a more complex convolutional network. 
+
+Results on Cartpole and Gridworld are very preliminary, but it appears that PRONG hurts convergence in Gridworld task and performs similarly to the normal gradient in the Cartpole task.
 
