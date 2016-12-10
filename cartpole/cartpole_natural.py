@@ -333,7 +333,7 @@ if __name__ == "__main__":
         stop_training = 10
     )
 
-    NUM_RUNS = 2
+    NUM_RUNS = 1
 
     convergence_iterations = []
 
