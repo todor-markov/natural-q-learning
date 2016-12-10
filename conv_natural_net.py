@@ -31,12 +31,14 @@ def _conv_identity_init():
 
 class NaturalNet():
 
-    def __init__(self, layer_sizes, epsilon, initializer=slim.xavier_initializer()):
+    def __init__(self, layer_sizes, epsilon, initializer=slim.xavier_initializer(),
+            conv=False):
         # include hidden and output layer sizes
         self.layer_sizes = layer_sizes
         self.num_layers = len(layer_sizes)
         self.epsilon = epsilon
         self.initializer = initializer
+        self.conv = conv
 
     def whitened_fully_connected(self, h, output_size, layer_index, activation=tf.nn.relu):
         input_size = h.get_shape()[-1]
@@ -62,41 +64,54 @@ class NaturalNet():
         input_size = h.get_shape()[-1]
         V = tf.get_variable('V_' + str(layer_index),
                 (kernel_size, kernel_size, input_size, num_outputs))
-        d = tf.get_variable('d_' + str(layer_index), (num_outputs, ))
         
         U = tf.get_variable('U_' + str(layer_index - 1),
                 (1, 1, input_size, input_size), trainable=False,
                 initializer=_conv_identity_init())
-        c = tf.get_variable('c_' + str(layer_index - 1), (input_size, ), trainable=False,
-                initializer=tf.constant_initializer())
 
         prev_h = h
         # whitening 1x1 conv
-        h = tf.nn.conv2d(h - c, U, [1, 1, 1, 1], padding)
-        #h = tf.Print(h, [tf.reduce_sum(prev_h - h)])
+        h = tf.nn.conv2d(h, U, [1, 1, 1, 1], padding)
 
         # normal conv
-        h = tf.nn.conv2d(h, V, [1, stride, stride, 1], padding) # + d
-
-        # multiply U and W and see if its equivalent
-        V_t = tf.reshape(V, [-1, int(V.get_shape()[2]), int(V.get_shape()[3])])
-        U_t = tf.squeeze(U)
-        W = _one_sided_batch_matmul(U_t, V_t)
-        print 'W', W.get_shape()
-        W = tf.reshape(W, [5,5,int(W.get_shape()[1]), int(W.get_shape()[2])])
-        test_h = tf.nn.conv2d(prev_h, W, [1, stride, stride, 1], padding) # + d
-
-        h = tf.Print(h, [tf.reduce_sum(h - test_h)])
-
-        
+        h = tf.nn.conv2d(h, V, [1, stride, stride, 1], padding)
 
         if activation:
             h = activation(h)
 
         return h
 
-
     def inference(self, x, scope='natural/net'):
+
+        hidden_states = []
+        with tf.variable_scope(scope, initializer=self.initializer):
+
+            V = tf.get_variable('V_1', (x.get_shape()[-1], self.layer_sizes[0]))
+            d = tf.get_variable('d_1', (self.layer_sizes[0], ))
+            h = tf.nn.relu(tf.matmul(x, V) + d)
+            hidden_states.append(h)
+
+            for i in range(2, self.num_layers+1):
+
+                # trainable network params
+                V = tf.get_variable('V_' + str(i), (self.layer_sizes[i - 2], self.layer_sizes[i - 1]))
+                d = tf.get_variable('d_' + str(i), (self.layer_sizes[i - 1], ))
+
+                # whitening params
+                U = tf.get_variable('U_' + str(i - 1), (self.layer_sizes[i - 2], self.layer_sizes[i - 2]),
+                        initializer=_identity_init(), trainable=False)
+                c = tf.get_variable('c_' + str(i - 1), (self.layer_sizes[i - 2], ),
+                        initializer=tf.constant_initializer(), trainable=False)
+
+                # whitened layer
+                h = tf.matmul(h - c, tf.matmul(U, V)) + d
+                if i < self.num_layers:
+                    h = tf.nn.relu(h)
+                    hidden_states.append(h)
+
+        return h, hidden_states
+
+    def conv_inference(self, x, scope='natural/net'):
 
         hidden_states = []
         with tf.variable_scope(scope, initializer=self.initializer):
@@ -111,8 +126,6 @@ class NaturalNet():
 
             for i in range(2, self.num_layers+1):
 
-                #h = self.whitened_fully_connected(h, self.layer_sizes[i - 1],
-                        #i, activation)
                 h = self.whitened_conv2d(h, self.layer_sizes[i - 1], 5, i)
                 hidden_states.append(h)
                 h = tf.nn.max_pool(h, ksize=[1, 2, 2, 1],
@@ -132,36 +145,32 @@ class NaturalNet():
         # perform inference on samples to later estimate mu and sigma
         out = []
         with tf.variable_scope('natural', reuse=True):
-            _, hidden_states = self.inference(samples, scope='net')
+            if self.conv:
+                _, hidden_states = self.conv_inference(samples, scope='net')
+            else:
+                _, hidden_states = self.inference(samples, scope='net')
             with tf.variable_scope('net'):
                 for i in range(2, self.num_layers+1):
+
                     # fetch relevant variables
                     V = tf.get_variable('V_' + str(i))
-                    d = tf.get_variable('d_' + str(i))
                     U = tf.get_variable('U_' + str(i - 1))
-                    c = tf.get_variable('c_' + str(i - 1))
-
-                    # transform variables to appropriate shapes if its a convolutional layer
                     conv = True if len(V.get_shape()) > 2 else False
+
+                    if not conv:
+                        d = tf.get_variable('d_' + str(i))
+                        c = tf.get_variable('c_' + str(i - 1))
+
 
                     # compute canonical parameters 
                     if conv:
-                        print 'V', V.get_shape()
-                        print 'd', d.get_shape()
-                        print 'U', U.get_shape()
-                        print 'c', c.get_shape()
                         V_t = tf.reshape(V, [-1, int(V.get_shape()[2]), int(V.get_shape()[3])])
                         U_t = tf.squeeze(U)
-                        print 'V_t', V_t.get_shape()
-                        print 'U_t', U_t.get_shape()
 
                         W = _one_sided_batch_matmul(U_t, V_t)
-                        b = d - _one_sided_batch_matmul(tf.expand_dims(c, 0), W)
                     else:
                         W = tf.matmul(U, V)
                         b = d - tf.matmul(tf.expand_dims(c, 0), W)
-                    print 'W', W.get_shape()
-                    print 'b', b.get_shape()
 
                     # treat spatial dimensions of hidden states as part of the batch
                     if conv:
@@ -171,9 +180,6 @@ class NaturalNet():
                     mu = tf.reduce_mean(hidden_states[i - 2], 0)
                     # estimate mu and sigma with samples from D
                     sigma = tf.reduce_mean(_batch_outer_product(hidden_states[i - 2], hidden_states[i - 2]), 0)
-                    print 'sigma', sigma.get_shape()
-                    print 'mu', mu.get_shape()
-
                     # update c and U from new mu and sigma
                     new_c = mu
                     # sigma must be self adjoint as it is composed of matrices of the form u*u'
@@ -186,18 +192,14 @@ class NaturalNet():
                         # transform U
                         new_U_t = tf.expand_dims(tf.expand_dims(new_U, 0), 0)
 
-                        c = tf.assign(c, new_c)
+                        #c = tf.assign(c, new_c)
                         U = tf.assign(U, new_U_t)
                     
-                        # update V and d
+                        # update V
                         new_V = _one_sided_batch_matmul(new_U_inverse, W)
-                        new_d = b + _one_sided_batch_matmul(tf.expand_dims(c, 0),
-                                _one_sided_batch_matmul(new_U, new_V))
-                        new_d = tf.squeeze(tf.reduce_mean(new_d, [0]))
-
                         new_V = tf.reshape(new_V, V.get_shape())
                     else:
-                        #c = tf.assign(c, new_c)
+                        c = tf.assign(c, new_c)
                         U = tf.assign(U, new_U)
 
                         # update V and d
@@ -205,10 +207,13 @@ class NaturalNet():
                         new_d = b + tf.matmul(tf.expand_dims(c, 0), tf.matmul(U, new_V))
                         new_d = tf.squeeze(new_d, [0])
 
+                        d = tf.assign(d, new_d)
+
                     V = tf.assign(V, new_V)
-                    #d = tf.assign(d, new_d)
                     
-                    tensors = [c, d, tf.reshape((U), [-1]), tf.reshape((V), [-1])]
-                    out = [tf.concat(0, out + [c, d, tf.reshape((U), [-1]), tf.reshape((V), [-1])])]
+                    tensors = [tf.reshape((U), [-1]), tf.reshape((V), [-1])]
+                    if not conv:
+                        tensors += [c, d]
+                    out = [tf.concat(0, out + tensors)]
 
         return out[0] # only exists to provide op for TF to run (there's probably a nicer way of doing this)

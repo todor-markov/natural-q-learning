@@ -4,7 +4,7 @@ import numpy as np
 
 import sys
 
-from natural_net import NaturalNet
+from conv_natural_net import NaturalNet
 
 slim = tf.contrib.slim
 
@@ -16,10 +16,10 @@ LABEL_SIZE = 10
 LAYER_SIZES = [32, 64]
 
 # Natural Neural Network parameters
-NATURAL = True
+NATURAL = False
 N_s = 100
 EPSILON = 0.1
-T = 10
+T = 100
 
 CONV = False
 
@@ -44,7 +44,7 @@ x_image = tf.reshape(x, [-1,28,28,1])
 
 nn = NaturalNet(LAYER_SIZES, EPSILON, slim.xavier_initializer())
 
-y, _ = nn.inference(x_image)
+y, _ = nn.conv_inference(x_image)
 
 reparam = nn.reparam_op(x_image)
 
@@ -75,7 +75,7 @@ accuracies = []
 
 for run in range(1):
     tf.initialize_all_variables().run(session=sess)
-    for step in range(10000):
+    for step in range(1000):
         batch_xs, batch_ys = mnist.train.next_batch(BATCH_SIZE)
         _, loss, summary = sess.run([train_step, cross_entropy, merged], feed_dict={x: batch_xs, y_: batch_ys})
         summary_writer.add_summary(summary, step)
@@ -103,5 +103,5 @@ for run in range(1):
     print acc
     accuracies.append(acc)
 
-print np.mean(np.array(accuracies))
+#print np.mean(np.array(accuracies))
 

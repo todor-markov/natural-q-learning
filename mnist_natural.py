@@ -2,7 +2,7 @@ import tensorflow as tf
 from tensorflow.examples.tutorials.mnist import input_data
 import numpy as np
 
-from natural_net import NaturalNet
+from conv_natural_net import NaturalNet
 
 slim = tf.contrib.slim
 
@@ -14,7 +14,7 @@ LABEL_SIZE = 10
 LAYER_SIZES = [128, 32, LABEL_SIZE]
 
 # Natural Neural Network parameters
-NATURAL = True
+NATURAL = False
 N_s = 100
 EPSILON = 0.1
 T = 100
