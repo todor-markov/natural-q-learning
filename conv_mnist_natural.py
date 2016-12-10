@@ -4,7 +4,7 @@ import numpy as np
 
 import sys
 
-from conv_natural_net import NaturalNet
+import conv_natural_net as natural_net
 
 slim = tf.contrib.slim
 
@@ -13,12 +13,9 @@ LEARNING_RATE = 0.01
 IMAGE_SIZE = 784
 LABEL_SIZE = 10
 
-LAYER_SIZES = [32, 64]
-
 # Natural Neural Network parameters
-NATURAL = False
+NATURAL = True
 N_s = 100
-EPSILON = 0.1
 T = 100
 
 CONV = False
@@ -26,27 +23,26 @@ CONV = False
 
 BATCH_SIZE = 100
 
-# for debugging
-def _print_params(sess):
-    with tf.variable_scope('natural/net', reuse=True):
-        V = tf.get_variable('V_2')
-        U = tf.get_variable('U_1')
-        d = tf.get_variable('d_2')
-        c = tf.get_variable('c_1')
-        W = tf.matmul(U, V)
-        print 'W', W.eval(session=sess)
-
 mnist = input_data.read_data_sets('MNIST_data', one_hot=True)
 
 x = tf.placeholder(tf.float32, [None, IMAGE_SIZE])
 
 x_image = tf.reshape(x, [-1,28,28,1])
 
-nn = NaturalNet(LAYER_SIZES, EPSILON, slim.xavier_initializer())
+#nn = NaturalNet(LAYER_SIZES, EPSILON, slim.xavier_initializer(), conv=True)
 
-y, _ = nn.conv_inference(x_image)
+with tf.variable_scope('natural/net', initializer=slim.xavier_initializer()):
+    h = slim.conv2d(x_image, 32, [5, 5])
+    h = slim.max_pool2d(h, [2, 2])
 
-reparam = nn.reparam_op(x_image)
+    h = natural_net.whitened_conv2d(h, 64, 5)
+    h = slim.max_pool2d(h, [2, 2])
+
+    h = slim.flatten(h)
+    h = slim.fully_connected(h, 1024)
+    y = slim.fully_connected(h, LABEL_SIZE, activation_fn=None)
+
+reparam = natural_net.reparam_op()
 
 print 'trainable variables'
 for v in tf.trainable_variables():
@@ -85,13 +81,8 @@ for run in range(1):
                 print 'step: %s\r' % (step)
 
             if NATURAL:
-                before = sess.run(y, feed_dict={x: batch_xs, y_:batch_ys})
                 samples, _ = mnist.train.next_batch(N_s)
                 sess.run(reparam, feed_dict={x: samples})
-                after = sess.run(y, feed_dict={x: batch_xs, y_:batch_ys})
-                print 'before/after'
-                print np.sum(before - after)
-        
 
     # Test trained model
     correct_prediction = tf.equal(tf.argmax(y, 1), tf.argmax(y_, 1))

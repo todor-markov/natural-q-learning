@@ -2,7 +2,7 @@ import tensorflow as tf
 from tensorflow.examples.tutorials.mnist import input_data
 import numpy as np
 
-from conv_natural_net import NaturalNet
+import conv_natural_net as natural_net
 
 slim = tf.contrib.slim
 
@@ -14,32 +14,23 @@ LABEL_SIZE = 10
 LAYER_SIZES = [128, 32, LABEL_SIZE]
 
 # Natural Neural Network parameters
-NATURAL = False
+NATURAL = True
 N_s = 100
-EPSILON = 0.1
 T = 100
 
 
 BATCH_SIZE = 100
 
-# for debugging
-def _print_params(sess):
-    with tf.variable_scope('natural/net', reuse=True):
-        V = tf.get_variable('V_2')
-        U = tf.get_variable('U_1')
-        d = tf.get_variable('d_2')
-        c = tf.get_variable('c_1')
-        W = tf.matmul(U, V)
-        print 'W', W.eval(session=sess)
-
 mnist = input_data.read_data_sets('MNIST_data', one_hot=True)
 
 x = tf.placeholder(tf.float32, [None, IMAGE_SIZE])
 
-nn = NaturalNet(LAYER_SIZES, EPSILON)
+with tf.variable_scope('natural/net', initializer=slim.xavier_initializer()):
+    h = slim.fully_connected(x, 128)
+    h = natural_net.whitened_fully_connected(h, 32)
+    y = natural_net.whitened_fully_connected(h, 10, activation=None)
 
-y, _ = nn.inference(x)
-reparam = nn.reparam_op(x)
+reparam = natural_net.reparam_op()
 
 print 'trainable variables'
 for v in tf.trainable_variables():
@@ -57,6 +48,11 @@ train_step = tf.train.GradientDescentOptimizer(LEARNING_RATE).minimize(cross_ent
 
 sess = tf.Session()
 
+tf.scalar_summary('loss', cross_entropy)
+merged = tf.merge_all_summaries()
+sum_dir = 'summaries/natural' if NATURAL else 'summaries/normal'
+summary_writer = tf.train.SummaryWriter(sum_dir, sess.graph)
+
 # Train
 tf.initialize_all_variables().run(session=sess)
 for step in range(10000):
@@ -67,12 +63,8 @@ for step in range(10000):
         print 'step: %s\r' % (step)
 
         if NATURAL:
-            before = sess.run(y, feed_dict={x: batch_xs, y_:batch_ys})
             samples, _ = mnist.train.next_batch(N_s)
             sess.run(reparam, feed_dict={x: samples})
-            after = sess.run(y, feed_dict={x: batch_xs, y_:batch_ys})
-            #print 'before/after'
-            #print np.sum(before - after)
     
 
 # Test trained model
