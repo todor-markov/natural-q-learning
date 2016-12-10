@@ -20,7 +20,6 @@ T = 100
 
 CONV = False
 
-
 BATCH_SIZE = 100
 
 mnist = input_data.read_data_sets('MNIST_data', one_hot=True)

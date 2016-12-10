@@ -18,7 +18,9 @@ import numpy as np
 import shutil
 import sys
 
-from natural_net import NaturalNet
+import natural_net
+
+slim = tf.contrib.slim
 
 class ExperienceQModel(object):
     def __init__(self, env, log_dir, monitor_file=None, max_memory=10000, discount=.9, n_episodes=300, 
@@ -57,9 +59,6 @@ class ExperienceQModel(object):
         # Neural Network Parameters
         self.n_hidden_1 = self.n_states
         self.layer_sizes = [self.n_states, self.n_actions]
-
-        print self.n_states
-        print self.n_actions
 
         # Natural Neural Network Parameters
         self.T = 100
@@ -197,12 +196,10 @@ class ExperienceQModel(object):
         self.session = tf.Session()
 
         # Model scope
-        with tf.name_scope('Model'):
-            natural_net = NaturalNet(self.layer_sizes, self.epsilon,
-                    tf.truncated_normal_initializer(stddev=0.1))
-            self.predictor, _ = natural_net.inference(self.x)
-            self.reparametrize = natural_net.reparam_op(self.x)
-            #self.predictor = self.tf_network()
+        with tf.variable_scope('Model', initializer=tf.truncated_normal_initializer(stddev=0.1)):
+            h = slim.fully_connected(self.x, self.n_states)
+            self.predictor = natural_net.whitened_fully_connected(h, self.n_actions, activation=None)
+            self.reparametrize = natural_net.reparam_op()
 
         # Loss
         with tf.name_scope('Loss'):
