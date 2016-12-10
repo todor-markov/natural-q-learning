@@ -14,7 +14,7 @@ LABEL_SIZE = 10
 LAYER_SIZES = [128, 32, LABEL_SIZE]
 
 # Natural Neural Network parameters
-NATURAL = True
+NATURAL = False
 N_s = 100
 T = 100
 

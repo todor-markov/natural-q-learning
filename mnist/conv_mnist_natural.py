@@ -14,7 +14,7 @@ IMAGE_SIZE = 784
 LABEL_SIZE = 10
 
 # Natural Neural Network parameters
-NATURAL = True
+NATURAL = False
 N_s = 100
 T = 100
 
@@ -70,7 +70,7 @@ accuracies = []
 
 for run in range(1):
     tf.initialize_all_variables().run(session=sess)
-    for step in range(1000):
+    for step in range(10000):
         batch_xs, batch_ys = mnist.train.next_batch(BATCH_SIZE)
         _, loss, summary = sess.run([train_step, cross_entropy, merged], feed_dict={x: batch_xs, y_: batch_ys})
         summary_writer.add_summary(summary, step)

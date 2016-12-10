@@ -16,8 +16,8 @@ env = gameEnv(partial=False,size=5)
 
 # Natural Neural Network params
 NATURAL = True
-T = 100
-N_s = 32
+T = 1000
+N_s = 1000
 
 class Qnetwork():
     def __init__(self,h_size):
@@ -27,12 +27,16 @@ class Qnetwork():
         self.imageIn = tf.reshape(self.scalarInput,shape=[-1,84,84,3])
         self.conv1 = slim.conv2d(self.imageIn, 32, [8, 8],
                 stride = 4, padding='VALID', biases_initializer=None)
+        self.conv1 = slim.batch_norm(self.conv1)
         self.conv2 = natural_net.whitened_conv2d(self.conv1, 64, 4,
                 stride = 2, padding='VALID')
+        self.conv2 = slim.batch_norm(self.conv2)
         self.conv3 = natural_net.whitened_conv2d(self.conv2, 64, 3,
                 stride = 1, padding='VALID')
+        self.conv3 = slim.batch_norm(self.conv3)
         self.conv4 = natural_net.whitened_conv2d(self.conv3, 512, 7,
                 stride = 1, padding='VALID')
+        self.conv4 = slim.batch_norm(self.conv4)
 
         #We take the output from the final convolutional layer and split it into separate advantage and value streams.
         self.streamAC,self.streamVC = tf.split(3,2,self.conv4)
@@ -105,98 +109,115 @@ mainQN = Qnetwork(h_size)
 reparam = natural_net.reparam_op()
 targetQN = Qnetwork(h_size)
 
-init = tf.initialize_all_variables()
+def run(natural):
 
-saver = tf.train.Saver()
+    init = tf.initialize_all_variables()
 
-trainables = tf.trainable_variables()
+    saver = tf.train.Saver()
 
-targetOps = updateTargetGraph(trainables,tau)
+    trainables = tf.trainable_variables()
 
-myBuffer = experience_buffer()
+    targetOps = updateTargetGraph(trainables,tau)
 
-#Set the rate of random action decrease. 
-e = startE
-stepDrop = (startE - endE)/anneling_steps
+    myBuffer = experience_buffer()
 
-#create lists to contain total rewards and steps per episode
-jList = []
-rList = []
-total_steps = 0
+    #Set the rate of random action decrease. 
+    e = startE
+    stepDrop = (startE - endE)/anneling_steps
 
-#Make a path for our model to be saved in.
-if not os.path.exists(path):
-    os.makedirs(path)
+    #create lists to contain total rewards and steps per episode
+    jList = []
+    rList = []
+    total_steps = 0
 
-with tf.Session() as sess:
-    if load_model == True:
-        print 'Loading Model...'
-        ckpt = tf.train.get_checkpoint_state(path)
-        saver.restore(sess,ckpt.model_checkpoint_path)
-    sess.run(init)
-    updateTarget(targetOps,sess) #Set the target network to be equal to the primary network.
-    for i in range(num_episodes):
-        episodeBuffer = experience_buffer()
-        #Reset environment and get first new observation
-        s = env.reset()
-        s = processState(s)
-        d = False
-        rAll = 0
-        j = 0
-        #The Q-Network
-        while j < max_epLength: #If the agent takes longer than 200 moves to reach either of the blocks, end the trial.
-            j+=1
-            #Choose an action by greedily (with e chance of random action) from the Q-network
-            if np.random.rand(1) < e or total_steps < pre_train_steps:
-                a = np.random.randint(0,4)
-            else:
-                a = sess.run(mainQN.predict,feed_dict={mainQN.scalarInput:[s]})[0]
-            s1,r,d = env.step(a)
-            s1 = processState(s1)
-            total_steps += 1
-            episodeBuffer.add(np.reshape(np.array([s,a,r,s1,d]),[1,5])) #Save the experience to our episode buffer.
+    #Make a path for our model to be saved in.
+    if not os.path.exists(path):
+        os.makedirs(path)
 
-            if total_steps % T == 0 and NATURAL:
-                #print 'reparametrizing network'
-                samples = myBuffer.sample(N_s)
-                sess.run(reparam, feed_dict={mainQN.scalarInput: np.vstack(samples[:,3])})
-            
-            if total_steps > pre_train_steps:
-                if e > endE:
-                    e -= stepDrop
+    with tf.Session() as sess:
+        if load_model == True:
+            print 'Loading Model...'
+            ckpt = tf.train.get_checkpoint_state(path)
+            saver.restore(sess,ckpt.model_checkpoint_path)
+        sess.run(init)
+        updateTarget(targetOps,sess) #Set the target network to be equal to the primary network.
+        for i in range(num_episodes):
+            episodeBuffer = experience_buffer()
+            #Reset environment and get first new observation
+            s = env.reset()
+            s = processState(s)
+            d = False
+            rAll = 0
+            j = 0
+            #The Q-Network
+            while j < max_epLength: #If the agent takes longer than 200 moves to reach either of the blocks, end the trial.
+                j+=1
+                #Choose an action by greedily (with e chance of random action) from the Q-network
+                if np.random.rand(1) < e or total_steps < pre_train_steps:
+                    a = np.random.randint(0,4)
+                else:
+                    a = sess.run(mainQN.predict,feed_dict={mainQN.scalarInput:[s]})[0]
+                s1,r,d = env.step(a)
+                s1 = processState(s1)
+                total_steps += 1
+                episodeBuffer.add(np.reshape(np.array([s,a,r,s1,d]),[1,5])) #Save the experience to our episode buffer.
+
                 
-                if total_steps % (update_freq) == 0:
-                    trainBatch = myBuffer.sample(batch_size) #Get a random batch of experiences.
-                    #Below we perform the Double-DQN update to the target Q-values
-                    Q1 = sess.run(mainQN.predict,feed_dict={mainQN.scalarInput:np.vstack(trainBatch[:,3])})
-                    Q2 = sess.run(targetQN.Qout,feed_dict={targetQN.scalarInput:np.vstack(trainBatch[:,3])})
-                    end_multiplier = -(trainBatch[:,4] - 1)
-                    doubleQ = Q2[range(batch_size),Q1]
-                    targetQ = trainBatch[:,2] + (y*doubleQ * end_multiplier)
-                    #Update the network with our target values.
-                    _ = sess.run(mainQN.updateModel, \
-                        feed_dict={mainQN.scalarInput:np.vstack(trainBatch[:,0]),mainQN.targetQ:targetQ, mainQN.actions:trainBatch[:,1]})
-                    
-                    updateTarget(targetOps,sess) #Set the target network to be equal to the primary network.
-            rAll += r
-            s = s1
-            
-            if d == True:
-                break
-        
-        #Get all experiences from this episode and discount their rewards.
-        myBuffer.add(episodeBuffer.buffer)
-        jList.append(j)
-        rList.append(rAll)
-        #Periodically save the model. 
-        if i % 1000 == 0:
-            saver.save(sess,path+'/model-'+str(i)+'.cptk')
-            print "Saved Model"
-        if len(rList) % 10 == 0:
-            print total_steps,np.mean(rList[-10:]), e
-    saver.save(sess,path+'/model-'+str(i)+'.cptk')
-print "Percent of succesful episodes: " + str(sum(rList)/num_episodes) + "%"
+                if total_steps > pre_train_steps:
 
-rMat = np.resize(np.array(rList),[len(rList)/100,100])
-rMean = np.average(rMat,1)
-#plt.plot(rMean)
+                    if total_steps % T == 0 and natural:
+                        #print 'reparametrizing network'
+                        samples = myBuffer.sample(N_s)
+                        sess.run(reparam, feed_dict={mainQN.scalarInput: np.vstack(samples[:,3])})
+
+                    if e > endE:
+                        e -= stepDrop
+                    
+                    if total_steps % (update_freq) == 0:
+                        trainBatch = myBuffer.sample(batch_size) #Get a random batch of experiences.
+                        #Below we perform the Double-DQN update to the target Q-values
+                        Q1 = sess.run(mainQN.predict,feed_dict={mainQN.scalarInput:np.vstack(trainBatch[:,3])})
+                        Q2 = sess.run(targetQN.Qout,feed_dict={targetQN.scalarInput:np.vstack(trainBatch[:,3])})
+                        end_multiplier = -(trainBatch[:,4] - 1)
+                        doubleQ = Q2[range(batch_size),Q1]
+                        targetQ = trainBatch[:,2] + (y*doubleQ * end_multiplier)
+                        #Update the network with our target values.
+                        _ = sess.run(mainQN.updateModel, \
+                            feed_dict={mainQN.scalarInput:np.vstack(trainBatch[:,0]),mainQN.targetQ:targetQ, mainQN.actions:trainBatch[:,1]})
+                        
+                        updateTarget(targetOps,sess) #Set the target network to be equal to the primary network.
+                rAll += r
+                s = s1
+                
+                if d == True:
+                    break
+            
+            #Get all experiences from this episode and discount their rewards.
+            myBuffer.add(episodeBuffer.buffer)
+            jList.append(j)
+            rList.append(rAll)
+            #Periodically save the model. 
+            if i % 1000 == 0:
+                saver.save(sess,path+'/model-'+str(i)+'.cptk')
+                print "Saved Model"
+            if len(rList) % 10 == 0:
+                print total_steps,np.mean(rList[-10:]), e
+        saver.save(sess,path+'/model-'+str(i)+'.cptk')
+    per_cent_success = str(sum(rList)/num_episodes)
+    with open('log', 'a') as f:
+        f.write(str(per_cent_success) + '\n')
+    print "Percent of succesful episodes: " + str(sum(rList)/num_episodes) + "%"
+
+    #rMat = np.resize(np.array(rList),[len(rList)/100,100])
+    #rMean = np.average(rMat,1)
+    #plt.plot(rMean)
+
+with open('log', 'w') as f:
+    f.write('5 Natural Runs' + '\n')
+for i in range(5):
+    run(True)
+with open('log', 'a') as f:
+    f.write('5 Normal Runs' + '\n')
+for i in range(5):
+    run(False)
+

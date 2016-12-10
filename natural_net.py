@@ -120,10 +120,15 @@ def reparam_op(epsilon=0.1):
             mu = tf.reduce_mean(hidden_states[i], 0)
             # estimate mu and sigma with samples from D
             sigma = tf.reduce_mean(_batch_outer_product(hidden_states[i], hidden_states[i]), 0)
+
             # update c and U from new mu and sigma
             new_c = mu
+
             # sigma must be self adjoint as it is composed of matrices of the form u*u'
+            sigma = tf.cast(sigma, tf.float64)
             eig_vals, eig_vecs = tf.self_adjoint_eig(sigma)
+            eig_vals, eig_vecs = tf.cast(eig_vals, tf.float32), tf.cast(eig_vecs, tf.float32)
+
             diagonal = tf.diag(tf.rsqrt(eig_vals + epsilon))
 
             # make sure reciprocal/root of eig vals isn't nan

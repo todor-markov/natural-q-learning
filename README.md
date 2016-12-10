@@ -4,7 +4,7 @@ This repository explores the use of natural gradient methods for deep Q learning
 
 We also provide a lightweight TensorFlow implementation of the Projected Natural Gradient Descent (PRONG) algorithm from DeepMind's recent paper [Natural Neural Networks](https://papers.nips.cc/paper/5953-natural-neural-networks.pdf).
 
-This technique approximates the natural gradient of a neural network through periodic reparametrizations.
+This technique approximates the natural gradient of a neural network through periodic reparametrizations. It is suggested to use PRONG in conjunction with batch normalization as this results in considerably more stable training.
 
 ## Usage
 Install [TensorFlow](https://www.tensorflow.org/versions/r0.12/get_started/index.html)
@@ -18,14 +18,16 @@ First define your model, using the provided functions for whitened layers:
 
 	inputs = ...
 	conv_1 = slim.conv2d(inputs, 32, [5, 5], stride = [2, 2])
+	conv_1 = slim.batch_norm(conv_1)
     conv_2 = natural_net.whitened_conv2d(conv_1, 64, 5, stride = 2)
+	conv_2 = slim.batch_norm(conv_2)
 
 	flat = slim.flatten(conv_2)
 	fc_1 = natural_net.whitened_fully_connected(flat, 1024)
 	fc_2 = natural_net.whitened_fully_connected(fc_1, 10, activation = None)
 ```
 
-During training, run the provided 'reparam_op' every T iterations on a batch of samples (T is a hyperparameter, typically 10^2 < T < 10^4)
+During training, run the provided 'reparam_op' every T iterations on a batch of samples (typically 10^2 < T < 10^4)
 ```python
 	# NOTE: must construct reparam op after model is defined
 	reparam = natural_net.reparam_op()
