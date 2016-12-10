@@ -1,5 +1,6 @@
 /MNIST_data
 *.pyc
+*.swp
 /conv_natural/MNIST_data
 /summaries
 /gridworld/dqn

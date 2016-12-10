@@ -124,7 +124,11 @@ def reparam_op(epsilon=0.1):
             new_c = mu
             # sigma must be self adjoint as it is composed of matrices of the form u*u'
             eig_vals, eig_vecs = tf.self_adjoint_eig(sigma)
+            #eig_vals = tf.Print(eig_vals, [tf.reduce_sum(eig_vals)])
             diagonal = tf.diag(tf.rsqrt(eig_vals + epsilon))
+            # make sure diagonal isn't nan
+            diagonal = tf.select(tf.is_nan(diagonal), tf.ones_like(diagonal) * 1000, diagonal)
+            #diagonal = tf.Print(diagonal, [diagonal])
             new_U = tf.matmul(tf.transpose(eig_vecs), diagonal)
             new_U_inverse = tf.matrix_inverse(new_U)
 

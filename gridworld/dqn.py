@@ -15,7 +15,7 @@ slim = tf.contrib.slim
 env = gameEnv(partial=False,size=5)
 
 # Natural Neural Network params
-NATURAL = True
+NATURAL = False
 T = 100
 N_s = 32
 
