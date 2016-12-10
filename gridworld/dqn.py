@@ -2,7 +2,7 @@ import gym
 import numpy as np
 import random
 import tensorflow as tf
-import matplotlib.pyplot as plt
+#import matplotlib.pyplot as plt
 import scipy.misc
 import os
 
@@ -15,7 +15,7 @@ slim = tf.contrib.slim
 env = gameEnv(partial=False,size=5)
 
 # Natural Neural Network params
-NATURAL = False
+NATURAL = True
 T = 100
 N_s = 32
 
@@ -199,4 +199,4 @@ print "Percent of succesful episodes: " + str(sum(rList)/num_episodes) + "%"
 
 rMat = np.resize(np.array(rList),[len(rList)/100,100])
 rMean = np.average(rMat,1)
-plt.plot(rMean)
+#plt.plot(rMean)

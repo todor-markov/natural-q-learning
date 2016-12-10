@@ -2,7 +2,9 @@
 
 This repository explores the use of natural gradient methods for deep Q learning.
 
-We also provide a lightweight TensorFlow implementation of the Projected Natural Gradient Descent algorithm from DeepMind's recent paper [Natural Neural Networks](https://papers.nips.cc/paper/5953-natural-neural-networks.pdf) which allows the approximation of the natural gradient through periodic reparametrizations of the neural network architecture.
+We also provide a lightweight TensorFlow implementation of the Projected Natural Gradient Descent (PRONG) algorithm from DeepMind's recent paper [Natural Neural Networks](https://papers.nips.cc/paper/5953-natural-neural-networks.pdf).
+
+This technique approximates the natural gradient of a neural network through periodic reparametrizations.
 
 ## Usage
 Install [TensorFlow](https://www.tensorflow.org/versions/r0.12/get_started/index.html)
