@@ -4,7 +4,7 @@ import numpy as np
 
 import sys
 
-import conv_natural_net as natural_net
+import natural_net
 
 slim = tf.contrib.slim
 

@@ -2,7 +2,7 @@ import tensorflow as tf
 from tensorflow.examples.tutorials.mnist import input_data
 import numpy as np
 
-import conv_natural_net as natural_net
+import natural_net
 
 slim = tf.contrib.slim
 
