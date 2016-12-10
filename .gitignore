@@ -2,3 +2,4 @@
 *.pyc
 /conv_natural/MNIST_data
 /summaries
+/gridworld/dqn
