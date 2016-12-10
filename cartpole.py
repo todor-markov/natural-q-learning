@@ -316,7 +316,7 @@ if __name__ == "__main__":
     )
 
 
-    NUM_RUNS = 3
+    NUM_RUNS = 1
 
     convergence_iterations = []
 
