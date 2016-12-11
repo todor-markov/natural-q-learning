@@ -48,3 +48,5 @@ We use MNIST to validate our PRONG implementation. Compared to vanilla SGD, our 
 
 Results on Cartpole and Gridworld are very preliminary, but it appears that PRONG hurts convergence in Gridworld task and performs similarly to the normal gradient in the Cartpole task.
 
+We adapt open source deep Q learning implementations for the Cartpole and the Gridworld environments from [Oleg Medvedev](https://gist.github.com/omdv/98351da37283c8b6161672d6d555cde6) and [Arthur Juliani](https://github.com/awjuliani/DeepRL-Agents).
+
