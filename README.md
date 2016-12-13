@@ -1,6 +1,6 @@
 # Natural Q Learning
 
-This repository explores the use of natural gradient methods for deep Q learning.
+This repository explores the use of natural gradient methods for deep Q learning. Our write up is [here](writeup.pdf).
 
 We also provide a lightweight TensorFlow implementation of the Projected Natural Gradient Descent (PRONG) algorithm from DeepMind's recent paper [Natural Neural Networks](https://papers.nips.cc/paper/5953-natural-neural-networks.pdf).
 
